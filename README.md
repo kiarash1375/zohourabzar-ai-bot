@@ -4,7 +4,7 @@ A Telegram bot that advises customers on the zohourabzar.ir catalogue: what we
 stock, what it costs, how many are left, and which tool suits the job. It
 accepts text and voice notes (transcribed with Whisper, answered in text).
 
-Everything it says about a product comes from the `products` table. The prompt
+Everything it says about a product comes from the `ai_products` table. The prompt
 forbids stating any price, spec or stock figure that is not in the data, and
 only in-stock products are ever loaded - recommending something the shop
 cannot ship is the failure this design is built to avoid.
@@ -29,8 +29,8 @@ Refreshing the catalogue never needs a redeploy: the bot reads the table live.
 ### 1. Database
 
 Supabase dashboard -> SQL Editor -> paste `supabase/migrations/0001_init.sql`
--> Run. This creates the `products` and `chat_history` tables, the pgvector
-extension and the `match_products` function.
+-> Run. This creates the `ai_products` and `ai_chat_history` tables, the pgvector
+extension and the `match_ai_products` function.
 
 ### 2. Bot token
 
@@ -38,12 +38,16 @@ Message @BotFather, `/newbot`, copy the token.
 
 ### 3. Function secrets
 
+This project already runs an older `telegram-bot` function that owns
+`TELEGRAM_BOT_TOKEN`. This bot reads differently-named secrets on purpose, so
+deploying it cannot break the old one.
+
 Supabase dashboard -> Edge Functions -> Secrets. Add:
 
 | Secret | Value |
 |---|---|
-| `TELEGRAM_BOT_TOKEN` | from BotFather |
-| `TELEGRAM_WEBHOOK_SECRET` | any random string you invent (see step 5) |
+| `AI_BOT_TOKEN` | from BotFather (new bot) |
+| `AI_WEBHOOK_SECRET` | any random string you invent (see step 5) |
 | `OPENAI_API_KEY` | your key |
 | `OPENAI_BASE_URL` | `https://api.gapgpt.app/v1` |
 | `CHAT_MODEL` | `gpt-4o-mini` (optional) |
@@ -71,11 +75,11 @@ any request without it.
 Replace both placeholders and open the URL in a browser once:
 
 ```
-https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<project-ref>.supabase.co/functions/v1/telegram&secret_token=<TELEGRAM_WEBHOOK_SECRET>
+https://api.telegram.org/bot<AI_BOT_TOKEN>/setWebhook?url=https://<project-ref>.supabase.co/functions/v1/telegram&secret_token=<AI_WEBHOOK_SECRET>
 ```
 
 You should get `{"ok":true,...}`. The `secret_token` must match the
-`TELEGRAM_WEBHOOK_SECRET` secret exactly.
+`AI_WEBHOOK_SECRET` secret exactly.
 
 ### 6. Load the catalogue
 
@@ -111,7 +115,7 @@ obvious to the customer.
 
 ## How an answer is produced
 
-1. The question is embedded and `match_products` returns the 25 nearest
+1. The question is embedded and `match_ai_products` returns the 25 nearest
    products by cosine distance.
 2. Those 25 are re-ranked in `lib.ts`, which adds two lexical signals to the
    similarity score:
@@ -133,7 +137,7 @@ prevents; `test/lib.test.ts` pins that behaviour down.
 
 | Path | Purpose |
 |---|---|
-| `supabase/migrations/0001_init.sql` | tables, pgvector, `match_products` |
+| `supabase/migrations/0001_init.sql` | tables, pgvector, `match_ai_products` |
 | `supabase/functions/telegram/index.ts` | webhook: routing, voice, LLM calls |
 | `supabase/functions/telegram/lib.ts` | pure helpers (normalising, ranking, rendering) |
 | `sync/sync_products.py` | WooCommerce -> embeddings -> Supabase |

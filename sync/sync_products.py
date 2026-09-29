@@ -189,18 +189,18 @@ def main():
         rows.append({**p, "search_text": search_text(p), "embedding": v,
                      "updated_at": "now()"})
     for start in range(0, len(rows), UPSERT_BATCH):
-        sb("POST", "/products",
+        sb("POST", "/ai_products",
            extra_headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
            json=rows[start:start + UPSERT_BATCH])
         print(f"     upserted {min(start + UPSERT_BATCH, len(rows))}/{len(rows)}")
 
     print("\n4/4  removing products that are no longer in stock...")
     keep = {p["id"] for p in products}
-    existing = sb("GET", "/products?select=id").json()
+    existing = sb("GET", "/ai_products?select=id").json()
     stale = [row["id"] for row in existing if row["id"] not in keep]
     for start in range(0, len(stale), UPSERT_BATCH):
         chunk = stale[start:start + UPSERT_BATCH]
-        sb("DELETE", "/products?id=in.(" + ",".join(map(str, chunk)) + ")")
+        sb("DELETE", "/ai_products?id=in.(" + ",".join(map(str, chunk)) + ")")
     print(f"     deleted {len(stale)}")
 
     with_specs = sum(1 for p in products if p["attributes"] or p["summary"])

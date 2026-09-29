@@ -8,8 +8,10 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { normalize, render, rerank, toman, type Product } from "./lib.ts";
 
 // ---------------------------------------------------------------- config
-const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
-const WEBHOOK_SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET")!;
+// Deliberately NOT TELEGRAM_BOT_TOKEN: that secret belongs to the older
+// telegram-bot function in this same project and must keep its own value.
+const TELEGRAM_TOKEN = Deno.env.get("AI_BOT_TOKEN")!;
+const WEBHOOK_SECRET = Deno.env.get("AI_WEBHOOK_SECRET")!;
 const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const OPENAI_BASE = (Deno.env.get("OPENAI_BASE_URL") ?? "https://api.openai.com/v1")
   .replace(/\/$/, "");
@@ -117,11 +119,11 @@ async function downloadFile(fileId: string): Promise<{ blob: Blob; name: string 
  */
 async function findProducts(question: string): Promise<Product[]> {
   const vector = await embed(question);
-  const { data, error } = await supabase.rpc("match_products", {
+  const { data, error } = await supabase.rpc("match_ai_products", {
     query_embedding: vector,
     match_count: CANDIDATES,
   });
-  if (error) throw new Error("match_products: " + error.message);
+  if (error) throw new Error("match_ai_products: " + error.message);
 
   return rerank(data as Product[], question, TOP_K);
 }
@@ -129,7 +131,7 @@ async function findProducts(question: string): Promise<Product[]> {
 // ---------------------------------------------------------------- history
 async function loadHistory(chatId: number) {
   const { data } = await supabase
-    .from("chat_history")
+    .from("ai_chat_history")
     .select("role, content")
     .eq("chat_id", chatId)
     .order("created_at", { ascending: false })
@@ -138,7 +140,7 @@ async function loadHistory(chatId: number) {
 }
 
 async function saveTurn(chatId: number, question: string, answer: string) {
-  await supabase.from("chat_history").insert([
+  await supabase.from("ai_chat_history").insert([
     { chat_id: chatId, role: "user", content: question },
     { chat_id: chatId, role: "assistant", content: answer },
   ]);
@@ -190,7 +192,7 @@ async function handleUpdate(update: any) {
   const text = (message.text ?? "").trim();
   if (text.startsWith("/start")) return void await send(chatId, GREETING);
   if (text.startsWith("/reset")) {
-    await supabase.from("chat_history").delete().eq("chat_id", chatId);
+    await supabase.from("ai_chat_history").delete().eq("chat_id", chatId);
     return void await send(chatId, "گفتگو از نو شروع شد.");
   }
 
